@@ -184,25 +184,50 @@ class CrawlerManager:
 
 
 class SearchOrchestrator:
-    """Top-level orchestrator coordinating all search strategies."""
+    """Top-level orchestrator coordinating all search strategies.
+
+    Features:
+    - Multi-source concurrent search (Dorking + Crawlers)
+    - Redis + Database two-tier caching
+    - Results persistence for future lookups
+    """
 
     def __init__(self, proxy: Optional[str] = None):
         self.proxy = proxy
         self.dork_engine = GoogleDorkEngine(proxy)
         self.crawler_manager = CrawlerManager(proxy)
 
-    async def search(self, query: str, max_results: int = 30) -> dict:
-        """Execute a full multi-source search.
+    async def search(
+        self, query: str, max_results: int = 30,
+        session=None, skip_cache: bool = False
+    ) -> dict:
+        """Execute a full multi-source search with caching.
+
+        Caching flow:
+        1. Redis (fast, 5 min TTL) → return if hit
+        2. PostgreSQL DB cache (30 min TTL) → return if hit
+        3. Actual search → populate both caches
+
+        Args:
+            query: Movie name to search for.
+            max_results: Max results to return.
+            session: Optional async DB session for cache lookups.
+            skip_cache: Force fresh search.
 
         Returns:
-            Dict with 'results', 'sources_used', and 'search_time_ms'.
+            Dict with 'results', 'sources_used', 'search_time_ms', 'total_count'.
         """
+        # Try cache first (unless skip_cache)
+        if not skip_cache:
+            cached = await self._try_cache(query, session)
+            if cached:
+                return cached
+
+        # No cache hit — do the actual search
         start_time = time.time()
 
-        # Run both search strategies concurrently
         dork_task = self.dork_engine.search(query, max_results)
         crawler_task = self.crawler_manager.search_all(query, max_results)
-
         dork_results, crawler_results = await asyncio.gather(dork_task, crawler_task)
 
         # Merge and deduplicate
@@ -217,10 +242,58 @@ class SearchOrchestrator:
 
         sources_used = list(set(r.source for r in unique_results))
         search_time = int((time.time() - start_time) * 1000)
+        final_results = unique_results[:max_results]
 
-        return {
-            "results": unique_results[:max_results],
-            "sources_used": sources_used,
+        result = {
+            "results": [r.model_dump() for r in final_results],
+            "sources_used": [s.value for s in sources_used],
             "search_time_ms": search_time,
-            "total_count": len(unique_results[:max_results]),
+            "total_count": len(final_results),
         }
+
+        # Populate caches asynchronously (fire-and-forget)
+        asyncio.ensure_future(self._populate_cache(query, result, session))
+
+        return result
+
+    async def _try_cache(self, query: str, session) -> Optional[dict]:
+        """Try Redis cache first, then DB cache."""
+        # 1. Redis (fastest)
+        from core.cache import RedisCache
+        cached = await RedisCache.get(query)
+        if cached:
+            cached["from_cache"] = "redis"
+            return cached
+
+        # 2. PostgreSQL cache
+        if session:
+            from core.services import CacheService
+            cached = await CacheService.get(session, query)
+            if cached:
+                # Promote to Redis
+                asyncio.ensure_future(RedisCache.set(query, cached))
+                cached["from_cache"] = "database"
+                return cached
+
+        return None
+
+    async def _populate_cache(self, query: str, result: dict, session) -> None:
+        """Save search results to both cache layers."""
+        # Save to Redis
+        from core.cache import RedisCache
+        await RedisCache.set(query, result)
+
+        # Save to PostgreSQL
+        if session:
+            try:
+                from core.services import CacheService
+                await CacheService.set(
+                    session,
+                    query,
+                    result["results"],
+                    result["total_count"],
+                    result["search_time_ms"],
+                    result["sources_used"],
+                )
+            except Exception as e:
+                logger.debug(f"Failed to cache in DB: {e}")

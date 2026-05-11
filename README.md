@@ -156,23 +156,24 @@
 ### 整体进度
 
 ```
-第一阶段 (MVP):     ████████████░░░░░░   85%
-第二阶段 (视觉):     ░░░░░░░░░░░░░░░░░░    0%
-第三阶段 (深度):     ░░░░░░░░░░░░░░░░░░    0%
-第四阶段 (社区):     ░░░░░░░░░░░░░░░░░░    0%
+第一阶段 (MVP):     ████████████████████  100%  ✅
+第二阶段 (视觉):     ██████████░░░░░░░░░░   50%  🔄  
+第三阶段 (深度):     ░░░░░░░░░░░░░░░░░░░░    0%
+第四阶段 (社区):     ░░░░░░░░░░░░░░░░░░░░    0%
 
-整体项目:           ██░░░░░░░░░░░░░░░░   15%
+整体项目:           █████░░░░░░░░░░░░░░░   30%
 ```
 
-### 已完成模块清单
+### 第一阶段（MVP）— ✅ 已全部完成
 
 | 模块 | 文件 | 状态 |
 |:---|:---|:---:|
 | FastAPI 应用工厂 | `api/server.py` | ✅ |
-| API 路由 | `api/routes/search.py` | ✅ |
+| API 搜索路由 | `api/routes/search.py` | ✅ |
+| API 管理路由 | `api/routes/admin.py` | ✅ |
 | Google Dorking 引擎 | `core/search_engine.py` | ✅ |
 | 站点爬虫管理器 | `core/search_engine.py` | ✅ |
-| 搜索编排器 | `core/search_engine.py` | ✅ |
+| 搜索编排器（含缓存） | `core/search_engine.py` | ✅ |
 | Pydantic 数据模型 | `core/models/schemas.py` | ✅ |
 | 链接提取工具 | `core/link_extractor.py` | ✅ |
 | 爬虫抽象基类 | `core/crawlers/base.py` | ✅ |
@@ -184,55 +185,104 @@
 | 前端交互逻辑 | `frontend/script.js` | ✅ |
 | 依赖清单 | `requirements.txt` | ✅ |
 | 环境变量模板 | `.env.example` | ✅ |
+| `.gitignore` | `.gitignore` | ✅ |
+| README 文档 | `README.md` | ✅ |
 
-### 待完善项
+### 第二阶段（视觉引擎 + 持久化）— 🔄 进行中 (50%)
 
-| 项目 | 优先级 | 说明 |
-|:---|:---:|:---|
-| 安装依赖并运行验证 | 🔴 高 | `pip install -r requirements.txt` |
-| 完善 `.gitignore` | 🟡 中 | 添加 `.env`、`venv/`、`__pycache__/` 等 |
-| 编写单元测试 | 🟡 中 | `tests/` 目录 + pytest |
-| 爬虫异常重试机制 | 🟢 低 | 失败自动重试 |
+| 模块 | 文件 | 状态 |
+|:---|:---|:---:|
+| 数据库连接管理 | `core/database.py` | ✅ |
+| SQLAlchemy ORM 模型 | `core/models/db_models.py` | ✅ |
+| Alembic 迁移配置 | `alembic/` + `alembic.ini` | ✅ |
+| CRUD 服务层 | `core/services.py` | ✅ |
+| Redis 缓存集成 | `core/cache.py` | ✅ |
+| 链接有效性校验 | `core/link_validator.py` | ✅ |
+| 搜索缓存集成（双缓存） | `core/search_engine.py` | ✅ |
+| 图片搜索 API | `api/routes/search.py` | ⏳ 待实现（需 API Key） |
+| 图像→元数据提取 | — | ⏳ 待实现 |
+| TMDb 元数据补充 | — | ⏳ 待实现 |
+
+### 第三阶段（深度爬虫 + 异步优化）— ⏳ 未开始
+
+| 模块 | 说明 |
+|:---|:---|
+| Playwright 动态爬虫 | 处理 JS 渲染 / Cloudflare |
+| Celery 异步任务调度 | 耗时任务后台处理 |
+| WebSocket 实时进度 | 前端推送搜索进度 |
+| 在线观看地址兜底 | 嵌入式播放器解析 |
+
+### 第四阶段（扩展 + 社区化）— ⏳ 未开始
+
+| 模块 | 说明 |
+|:---|:---|
+| 用户账户体系 | 注册/登录/收藏 |
+| 求片功能 | 社区互助 |
+| API 文档完善 | OpenAPI |
+| Docker 容器化 | docker-compose |
 
 ### 项目结构
 
 ```
 Rare_Movie_Search_Engine/
-├── .env.example           # 环境变量模板
-├── requirements.txt       # Python 依赖
-├── main.py                # 入口文件
-├── plan.md                # 原始开发计划
-├── README.md              # 本文件
+├── .env.example              # 环境变量模板
+├── .gitignore                # Git 忽略规则
+├── requirements.txt          # Python 依赖
+├── main.py                   # 入口文件
+├── alembic.ini               # 数据库迁移配置
+├── plan.md                   # 原始开发计划
+├── README.md                 # 本文件
+│
+├── alembic/                  # 数据库迁移脚本
+│   ├── env.py
+│   └── script.py.mako
+│
 ├── config/
-│   ├── config.py          # 配置管理
-│   └── config.yaml        # 爬虫站点 + Dork 策略
+│   ├── config.py             # 配置管理 (pydantic-settings)
+│   └── config.yaml           # 爬虫站点 + Dork 策略
+│
 ├── api/
-│   ├── server.py          # FastAPI 应用工厂
-│   └── routes/search.py   # API 路由
+│   ├── server.py             # FastAPI 应用工厂 v0.2.0
+│   └── routes/
+│       ├── search.py         # 搜索 API (带缓存/持久化)
+│       └── admin.py          # 管理/监控 API
+│
 ├── core/
-│   ├── search_engine.py   # 搜索引擎编排
-│   ├── link_extractor.py  # 链接提取工具
+│   ├── __init__.py
+│   ├── database.py           # 数据库连接 + session 管理
+│   ├── search_engine.py      # 搜索引擎编排 (双缓存)
+│   ├── link_extractor.py     # 链接提取 (Magnet/ED2K/网盘)
+│   ├── link_validator.py     # 链接有效性校验
+│   ├── cache.py              # Redis 缓存层
+│   ├── services.py           # CRUD 服务层
 │   ├── crawlers/
-│   │   ├── base.py        # 爬虫基类
-│   │   └── torrent_sites.py # 站点爬虫
-│   └── models/schemas.py  # 数据模型
+│   │   ├── base.py           # 爬虫抽象基类
+│   │   └── torrent_sites.py  # TPB / 1337x / YTS 实现
+│   └── models/
+│       ├── schemas.py        # Pydantic 数据模型
+│       └── db_models.py      # SQLAlchemy ORM 模型
+│
 └── frontend/
-    ├── index.html         # 搜索页面
-    ├── styles.css         # 样式
-    └── script.js          # 前端逻辑
+    ├── index.html            # 暗色主题搜索页面
+    ├── styles.css            # 现代化 UI 样式
+    └── script.js             # 前端交互逻辑
 ```
 
 ### 快速开始
 
 ```bash
-# 安装依赖
+# 1. 安装依赖
 pip install -r requirements.txt
 
-# 配置环境变量
+# 2. 配置环境变量
 cp .env.example .env
+# 编辑 .env 设置 DATABASE_URL (PostgreSQL 可选)
 
-# 启动服务
+# 3. 启动服务
 python main.py
 
-# 访问 http://localhost:8000
+# 4. 访问
+# http://localhost:8000          — 前端搜索页面
+# http://localhost:8000/docs     — API 文档
+# http://localhost:8000/api/health — 健康检查
 ```
