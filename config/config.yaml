@@ -1,0 +1,108 @@
+# CineSeeker Configuration
+# Crawler sites and search strategy definitions
+
+crawlers:
+  # Static sites (parsed with BeautifulSoup)
+  sites:
+    - name: "The Pirate Bay"
+      enabled: true
+      type: static
+      base_url: "https://thepiratebay.org"
+      search_path: "/search/{query}/1/99/0"
+      link_pattern: "magnet:?xt=urn:btih:"
+      selectors:
+        result_container: "div.detName"
+        title: "a.detLink"
+        link: "a[href^='magnet:']"
+        seeders: "td"
+        size: "font.detDesc"
+
+    - name: "1337x"
+      enabled: true
+      type: static
+      base_url: "https://1337x.to"
+      search_path: "/search/{query}/1/"
+      link_pattern: "magnet:?xt=urn:btih:"
+      selectors:
+        result_container: "tr"
+        title: "a:nth-child(2)"
+        link: "a[href^='/torrent/']"
+        seeders: "td.seeds"
+        leechers: "td.leeches"
+        size: "td.size"
+
+    - name: "RARBG (proxy)"
+      enabled: false
+      type: static
+      base_url: "https://rarbg.to"
+      search_path: "/torrents.php?search={query}"
+      link_pattern: "magnet:?xt=urn:btih:"
+      selectors:
+        result_container: "tr.lista2"
+        title: "a"
+        link: "a[href^='magnet:']"
+
+    - name: "YTS"
+      enabled: true
+      type: static
+      base_url: "https://yts.mx"
+      search_path: "/browse-movies/{query}/all/all/0/latest/0/all"
+      link_pattern: "magnet:?xt=urn:btih:"
+      selectors:
+        result_container: "div.browse-movie-wrap"
+        title: "a.browse-movie-title"
+        link: "a[href^='/torrent/download']"
+        year: "div.browse-movie-year"
+
+    - name: "BTDigg"
+      enabled: true
+      type: static
+      base_url: "https://btdigg.ink"
+      search_path: "/search?q={query}"
+      link_pattern: "magnet:?xt=urn:btih:"
+      selectors:
+        result_container: "div.torrent"
+        title: "a.torrent_name"
+        link: "a[href^='magnet:']"
+        size: "span.size"
+
+search:
+  # Google Dorking queries for finding magnet/torrent files
+  dork_queries:
+    - query: 'intitle:"index of" {query} mkv'
+      description: "Direct directory listing for MKV files"
+      weight: 1.0
+
+    - query: 'intitle:"index of" {query} mp4'
+      description: "Direct directory listing for MP4 files"
+      weight: 1.0
+
+    - query: 'site:pan.quark.cn {query} 电影'
+      description: "Quark cloud drive search"
+      weight: 0.8
+
+    - query: 'site:aliyundrive.com {query} 电影'
+      description: "Aliyun drive search"
+      weight: 0.8
+
+    - query: '("{query}" magnet:?xt=)'
+      description: "Generic magnet link search"
+      weight: 1.2
+
+    - query: 'site:nyaa.si {query}'
+      description: "Nyaa torrent index (good for Asian/rare films)"
+      weight: 0.9
+
+    - query: 'site:rutracker.org {query}'
+      description: "RuTracker forum search"
+      weight: 0.7
+
+    - query: '"{query}" torrent download'
+      description: "Generic torrent search"
+      weight: 0.6
+
+server:
+  cors_origins:
+    - "*"
+
+  rate_limit: 10  # requests per minute per IP

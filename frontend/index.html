@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineSeeker - 稀有电影搜索引擎</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header / Hero -->
+        <header class="hero" id="hero">
+            <div class="container">
+                <div class="logo">
+                    <span class="logo-icon">🎬</span>
+                    <h1>CineSeeker</h1>
+                </div>
+                <p class="tagline">稀有电影 · 一键直达 · 聚合搜索</p>
+
+                <!-- Search Form -->
+                <div class="search-container" id="searchContainer">
+                    <form id="searchForm" class="search-form" autocomplete="off">
+                        <div class="search-input-wrapper">
+                            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="m21 21-4.35-4.35"/>
+                            </svg>
+                            <input
+                                type="text"
+                                id="searchInput"
+                                class="search-input"
+                                placeholder="输入稀有电影名称，例如：The Starfish (1928)..."
+                                autofocus
+                            />
+                            <button type="submit" class="search-btn" id="searchBtn">
+                                搜索
+                            </button>
+                        </div>
+                    </form>
+                    <div class="search-hints">
+                        <span>试试：</span>
+                        <button class="hint-chip" data-query="The Man Who Killed Don Quixote">The Man Who Killed Don Quixote</button>
+                        <button class="hint-chip" data-query="The Fall (2006)">The Fall (2006)</button>
+                        <button class="hint-chip" data-query="Stalker 1979 Criterion">Stalker 1979 Criterion</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content container" id="mainContent">
+            <!-- Loading State -->
+            <div class="loading-state" id="loadingState">
+                <div class="spinner"></div>
+                <div class="search-progress">
+                    <p class="progress-text">正在全网搜索稀有资源...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-sources">
+                        <span class="source-tag active">Google Dorking</span>
+                        <span class="source-tag">The Pirate Bay</span>
+                        <span class="source-tag">1337x</span>
+                        <span class="source-tag">YTS</span>
+                        <span class="source-tag">BTDigg</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section" id="resultsSection">
+                <!-- Summary Bar -->
+                <div class="results-summary" id="resultsSummary">
+                    <div class="summary-left">
+                        <span class="results-count" id="resultsCount">0</span>
+                        <span class="results-label">个资源</span>
+                        <span class="separator">·</span>
+                        <span class="search-time" id="searchTime">0ms</span>
+                    </div>
+                    <div class="summary-right">
+                        <span class="sources-label">来源：</span>
+                        <span id="sourcesList"></span>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-bar" id="filterBar">
+                    <button class="filter-btn active" data-filter="all">全部</button>
+                    <button class="filter-btn" data-filter="magnet">磁力链接</button>
+                    <button class="filter-btn" data-filter="torrent">种子文件</button>
+                    <button class="filter-btn" data-filter="cloud_drive">网盘资源</button>
+                </div>
+
+                <!-- Results List -->
+                <div class="results-list" id="resultsList"></div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">🔍</div>
+                    <h3>未找到相关资源</h3>
+                    <p>试试更换关键词，或使用电影的 IMDb 编号搜索</p>
+                </div>
+            </div>
+
+            <!-- Error State -->
+            <div class="error-state" id="errorState">
+                <div class="error-icon">⚠️</div>
+                <h3>搜索出错</h3>
+                <p id="errorMessage">请稍后重试</p>
+                <button class="retry-btn" id="retryBtn">重试</button>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>CineSeeker · 稀有电影搜索引擎 · 第一阶段 MVP</p>
+                <p class="footer-note">本站仅提供资源聚合，不存储任何文件</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
