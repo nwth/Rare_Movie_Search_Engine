@@ -19,6 +19,7 @@ from core.crawlers.torrent_sites import (
     YTSCrawler,
     _1337xCrawler,
 )
+from core.crawlers.cloud_drives import PanDorkCrawler
 from core.link_extractor import (
     extract_info_hash,
     extract_links_from_html,
@@ -140,10 +141,11 @@ class CrawlerManager:
         self._init_crawlers()
 
     def _init_crawlers(self):
-        """Initialize crawlers from config."""
+        """Initialize crawlers from config + cloud drive dork crawlers."""
         site_configs = settings.get_crawler_sites()
         self.crawlers = []
 
+        # Site-specific crawlers from config.yaml
         for site_cfg in site_configs:
             if not site_cfg.get("enabled", False):
                 continue
@@ -160,6 +162,22 @@ class CrawlerManager:
             else:
                 from core.crawlers.base import StaticCrawler
                 self.crawlers.append(StaticCrawler(site_cfg, self.proxy))
+
+        # Cloud drive crawlers (from config.yaml dork queries)
+        self._init_cloud_drive_crawlers()
+
+    def _init_cloud_drive_crawlers(self):
+        """Create cloud-drive-specific dork crawlers."""
+        drive_configs = [
+            ("QuarkPan", 'site:pan.quark.cn {query}', ResourceType.CLOUD_DRIVE, 1.0),
+            ("AliYunDrive", 'site:aliyundrive.com {query}', ResourceType.CLOUD_DRIVE, 0.9),
+            ("BaiduPan", 'site:pan.baidu.com {query} 提取码', ResourceType.CLOUD_DRIVE, 0.8),
+            ("123Pan", 'site:123pan.com {query}', ResourceType.CLOUD_DRIVE, 0.7),
+        ]
+        for name, dork, rtype, weight in drive_configs:
+            self.crawlers.append(
+                PanDorkCrawler(name, dork, rtype, weight, self.proxy)
+            )
 
     async def search_all(self, query: str, max_results: int = 30) -> list[SearchResult]:
         """Run all crawlers concurrently and merge results."""

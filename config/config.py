@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     yandex_api_key: Optional[str] = None
     serpapi_key: Optional[str] = None
 
+    # Movie Metadata API Keys
+    tmdb_api_key: Optional[str] = None
+    omdb_api_key: Optional[str] = None
+
     # Search Engine Settings
     google_dork_timeout: int = 10
     max_search_results: int = 50

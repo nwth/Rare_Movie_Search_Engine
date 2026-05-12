@@ -6,9 +6,13 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config.config import settings
 from core.database import get_session
+from core.image_search import ImageSearchOrchestrator
+from core.metadata import MetadataOrchestrator
 from core.models.schemas import (
     ImageSearchRequest,
+    MovieMetadata,
     ResourceType,
     SearchRequest,
     SearchResponse,
@@ -96,19 +100,69 @@ async def search_movie(
 async def search_by_image(
     image_url: str = Query(..., description="URL of the movie screenshot/still to search by"),
     max_results: int = Query(default=30, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
 ):
     """Search for movie resources using an image (screenshot/still).
 
-    This endpoint will:
-    1. Send the image to reverse image search (Yandex/Google)
-    2. Extract movie metadata from the results
-    3. Use the identified movie name to search for resources
+    Pipeline:
+    1. Send image to Yandex/Google reverse image search
+    2. Extract movie metadata (title, year)
+    3. Enrich via TMDb/OMDb
+    4. Search for download resources using identified movie name
     """
-    # For Phase 1 MVP, return a placeholder
-    # Phase 2 will implement the actual image recognition pipeline
-    raise HTTPException(
-        status_code=501,
-        detail="Image search is not yet implemented. Phase 2 of the development plan.",
+    # Step 1+2: Identify movie from image
+    image_orchestrator = ImageSearchOrchestrator()
+    movie_meta = await image_orchestrator.identify_movie(image_url)
+
+    if not movie_meta:
+        raise HTTPException(
+            status_code=404,
+            detail="Could not identify any movie from this image. Try a clearer screenshot or use text search.",
+        )
+
+    # Step 3: Enrich metadata via TMDb
+    try:
+        meta_orchestrator = MetadataOrchestrator()
+        movie_meta = await meta_orchestrator.enrich(movie_meta)
+    except Exception as e:
+        logger.debug(f"Metadata enrichment failed: {e}")
+
+    # Step 4: Search for resources
+    query = movie_meta.title
+    if movie_meta.year:
+        query = f"{movie_meta.title} {movie_meta.year}"
+
+    search_orchestrator = get_orchestrator()
+    try:
+        search_result = await search_orchestrator.search(
+            query, max_results=max_results, session=session
+        )
+    except Exception as e:
+        logger.exception(f"Search failed after image identification for '{query}'")
+        raise HTTPException(status_code=500, detail=f"Resource search failed: {e}")
+
+    # Persist movie record
+    if session:
+        try:
+            await MovieService.create_or_update(
+                session,
+                title=movie_meta.title,
+                year=movie_meta.year,
+                original_title=movie_meta.original_title,
+                imdb_id=movie_meta.imdb_id,
+                poster_url=movie_meta.poster_url,
+                overview=movie_meta.overview,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to persist movie: {e}")
+
+    return SearchResponse(
+        query=query,
+        movie=movie_meta,
+        results=search_result["results"],
+        total_count=search_result["total_count"],
+        search_time_ms=search_result["search_time_ms"],
+        sources_used=search_result["sources_used"],
     )
 
 
@@ -117,11 +171,21 @@ async def list_sources():
     """List all available search sources."""
     return {
         "sources": [
-            {"id": "google_dork", "name": "Google Dorking", "enabled": True},
-            {"id": "the_pirate_bay", "name": "The Pirate Bay", "enabled": True},
-            {"id": "1337x", "name": "1337x", "enabled": True},
-            {"id": "yts", "name": "YTS", "enabled": True},
-            {"id": "btdigg", "name": "BTDigg", "enabled": True},
+            # Text search engines
+            {"id": "google_dork", "name": "Google Dorking", "type": "text", "enabled": True},
+            # Torrent sites
+            {"id": "the_pirate_bay", "name": "The Pirate Bay", "type": "torrent", "enabled": True},
+            {"id": "1337x", "name": "1337x", "type": "torrent", "enabled": True},
+            {"id": "yts", "name": "YTS", "type": "torrent", "enabled": True},
+            {"id": "btdigg", "name": "BTDigg", "type": "torrent", "enabled": True},
+            # Cloud drives
+            {"id": "quark_pan", "name": "夸克网盘", "type": "cloud_drive", "enabled": True},
+            {"id": "aliyun_drive", "name": "阿里云盘", "type": "cloud_drive", "enabled": True},
+            {"id": "baidu_pan", "name": "百度网盘", "type": "cloud_drive", "enabled": True},
+            {"id": "123_pan", "name": "123云盘", "type": "cloud_drive", "enabled": True},
+            # Image recognition
+            {"id": "yandex_image", "name": "Yandex 图片识别", "type": "image", "enabled": True},
+            {"id": "serpapi_lens", "name": "Google Lens (SerpApi)", "type": "image", "enabled": bool(settings.serpapi_key)},
         ]
     }
 
