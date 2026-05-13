@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     yandex_api_key: Optional[str] = None
     serpapi_key: Optional[str] = None
 
+    # Image Hosting API Keys (free tier available)
+    imgbb_api_key: Optional[str] = None
+
     # Movie Metadata API Keys
     tmdb_api_key: Optional[str] = None
     omdb_api_key: Optional[str] = None

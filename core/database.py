@@ -66,14 +66,23 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db():
-    """Create all tables on startup (for development)."""
+    """Create all tables on startup (for development).
+
+    Gracefully handles missing database - tables are optional.
+    """
     engine = get_engine()
     if engine is None:
         logger.info("No database configured, skipping table creation")
         return
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created/verified")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.warning(f"Database unavailable, running without persistence: {e}")
+        # Reset engine so subsequent calls don't retry
+        global _engine
+        _engine = None
 
 
 async def close_db():
