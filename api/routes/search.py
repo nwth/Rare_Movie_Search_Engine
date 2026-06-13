@@ -39,13 +39,22 @@ async def search_movie(
     max_results: int = Query(default=30, ge=1, le=100, description="Maximum results to return"),
     source: str = Query(default=None, description="Filter by source (e.g., google_dork, the_pirate_bay)"),
     refresh: bool = Query(default=False, description="Skip cache and force fresh search"),
+    dynamic: bool = Query(default=False, description="Use Playwright dynamic crawlers (slower but catches JS sites)"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Search for movie download resources by name."""
+    """Search for movie download resources by name.
+
+    Supports multiple search strategies:
+    - Google Dorking for direct file listings and magnet links
+    - Site-specific static crawlers (The Pirate Bay, 1337x, YTS, etc.)
+    - Cloud drive dork crawlers (Quark, AliYun, Baidu, 123Pan)
+    - Playwright dynamic crawlers for JS-rendered sites (TorrentGalaxy, Nyaa.si)
+    """
     orchestrator = get_orchestrator()
     try:
         result = await orchestrator.search(
-            q, max_results=max_results, session=session, skip_cache=refresh
+            q, max_results=max_results, session=session,
+            skip_cache=refresh, use_dynamic=dynamic,
         )
     except Exception as e:
         logger.exception(f"Search failed for query '{q}'")

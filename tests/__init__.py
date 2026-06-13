@@ -1,0 +1,1 @@
+"""CineSeeker test suite."""

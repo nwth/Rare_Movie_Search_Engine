@@ -20,6 +20,7 @@ from core.crawlers.torrent_sites import (
     _1337xCrawler,
 )
 from core.crawlers.cloud_drives import PanDorkCrawler
+from core.crawlers.dynamic import DynamicCrawlerManager, CRAWLER_CONFIGS
 from core.link_extractor import (
     extract_info_hash,
     extract_links_from_html,
@@ -204,20 +205,23 @@ class CrawlerManager:
 class SearchOrchestrator:
     """Top-level orchestrator coordinating all search strategies.
 
-    Features:
-    - Multi-source concurrent search (Dorking + Crawlers)
-    - Redis + Database two-tier caching
-    - Results persistence for future lookups
+    Search layers (run concurrently):
+    1. Google Dorking (8+ dork queries)
+    2. Static crawlers (TPB, 1337x, YTS, BTDigg)
+    3. Cloud drive dork crawlers (Quark, AliYun, Baidu, 123Pan)
+    4. Dynamic/JS crawlers (TorrentGalaxy, LimeTorrents, Nyaa.si)
     """
 
     def __init__(self, proxy: Optional[str] = None):
         self.proxy = proxy
         self.dork_engine = GoogleDorkEngine(proxy)
         self.crawler_manager = CrawlerManager(proxy)
+        self.dynamic_crawler = DynamicCrawlerManager()
 
     async def search(
         self, query: str, max_results: int = 30,
-        session=None, skip_cache: bool = False
+        session=None, skip_cache: bool = False,
+        use_dynamic: bool = False
     ) -> dict:
         """Execute a full multi-source search with caching.
 
@@ -226,11 +230,9 @@ class SearchOrchestrator:
         2. PostgreSQL DB cache (30 min TTL) → return if hit
         3. Actual search → populate both caches
 
-        Args:
-            query: Movie name to search for.
-            max_results: Max results to return.
-            session: Optional async DB session for cache lookups.
-            skip_cache: Force fresh search.
+        Post-processing:
+        - Cloud drive links: auto-extract 提取码
+        - Low results (<5): add streaming fallback
 
         Returns:
             Dict with 'results', 'sources_used', 'search_time_ms', 'total_count'.
@@ -246,10 +248,19 @@ class SearchOrchestrator:
 
         dork_task = self.dork_engine.search(query, max_results)
         crawler_task = self.crawler_manager.search_all(query, max_results)
-        dork_results, crawler_results = await asyncio.gather(dork_task, crawler_task)
+
+        if use_dynamic:
+            # Also run Playwright dynamic crawlers (slower but more thorough)
+            dynamic_task = self.dynamic_crawler.search_all(query, max_results)
+            dork_results, crawler_results, dynamic_results = await asyncio.gather(
+                dork_task, crawler_task, dynamic_task
+            )
+        else:
+            dynamic_results = []
+            dork_results, crawler_results = await asyncio.gather(dork_task, crawler_task)
 
         # Merge and deduplicate
-        all_results = dork_results + crawler_results
+        all_results = dork_results + crawler_results + dynamic_results
         seen = set()
         unique_results: list[SearchResult] = []
         for r in sorted(all_results, key=lambda x: x.quality_score, reverse=True):
@@ -261,6 +272,22 @@ class SearchOrchestrator:
         sources_used = list(set(r.source for r in unique_results))
         search_time = int((time.time() - start_time) * 1000)
         final_results = unique_results[:max_results]
+
+        # Post-processing: extract 提取码 for cloud drive links
+        asyncio.ensure_future(self._enrich_cloud_links(final_results))
+
+        # Post-processing: streaming fallback if few download results
+        if len(final_results) < 5:
+            try:
+                from core.stream_parser import StreamingFallback
+                stream_results = await StreamingFallback.find_streaming(query, max_results=5)
+                existing_urls = {r.url for r in final_results}
+                for sr in stream_results:
+                    if sr.url not in existing_urls:
+                        final_results.append(sr)
+                        existing_urls.add(sr.url)
+            except Exception as e:
+                logger.debug(f"Streaming fallback failed: {e}")
 
         result = {
             "results": [r.model_dump() for r in final_results],
@@ -294,6 +321,21 @@ class SearchOrchestrator:
                 return cached
 
         return None
+
+    async def _enrich_cloud_links(self, results: list) -> None:
+        """Background task: extract 提取码 for cloud drive links."""
+        try:
+            from core.cloud_extractor import CloudExtractionPipeline
+
+            for r in results:
+                url = r.url if hasattr(r, "url") else r.get("url", "")
+                rtype = r.resource_type if hasattr(r, "resource_type") else r.get("resource_type", "")
+                if rtype in ("cloud_drive",) and "baidu" in url.lower():
+                    code = await CloudExtractionPipeline.process(url)
+                    if code and hasattr(r, "extra"):
+                        r.extra["extraction_code"] = code.code
+        except Exception as e:
+            logger.debug(f"Cloud link enrichment failed: {e}")
 
     async def _populate_cache(self, query: str, result: dict, session) -> None:
         """Save search results to both cache layers."""

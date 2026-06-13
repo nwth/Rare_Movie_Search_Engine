@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
             "Supports text and image-based search, aggregating results "
             "from torrent sites, cloud drives, and Google Dorking."
         ),
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
 
@@ -61,6 +61,10 @@ def create_app() -> FastAPI:
     # Register admin routes
     from api.routes.admin import router as admin_router
     app.include_router(admin_router)
+
+    # Register WebSocket routes
+    from api.routes.ws import router as ws_router
+    app.include_router(ws_router)
 
     # Serve frontend static files
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"

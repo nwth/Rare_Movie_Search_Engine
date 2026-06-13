@@ -52,7 +52,7 @@ async def get_stats(session: AsyncSession = Depends(get_session)):
             for row in result
         ]
 
-    stats["version"] = "0.2.0"
+    stats["version"] = "0.3.0"
     return stats
 
 
@@ -95,5 +95,5 @@ async def full_health_check(session: AsyncSession = Depends(get_session)):
     return {
         "status": "ok" if all_ok else "degraded",
         "checks": checks,
-        "version": "0.2.0",
+        "version": "0.3.0",
     }
